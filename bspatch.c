@@ -41,6 +41,7 @@ __FBSDID("$FreeBSD$");
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -154,8 +155,9 @@ int main(int argc, char *argv[])
 	if ((epf = fopen(argv[3], "rb")) == NULL)
 		err(1, "fopen(%s)", argv[3]);
 	/* open oldfile */
-	if ((oldfd = open(argv[1], O_RDONLY | O_BINARY, 0)) < 0)
-		err(1, "open(%s)", argv[1]);
+        oldfd = open(argv[1], O_RDONLY,0);
+	if (oldfd < 0)
+		err(1, "Open %s", argv[1]);
 	/* open directory where we'll write newfile */
 	if ((namebuf = strdup(argv[2])) == NULL ||
 	    (directory = dirname(namebuf)) == NULL ||
@@ -165,9 +167,10 @@ int main(int argc, char *argv[])
 	if ((newfile = basename(argv[2])) == NULL)
 		err(1, "basename");
 	/* open newfile */
-	if ((newfd = openat(dirfd, newfile,
-	    O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0666)) < 0)
+	newfd = openat(dirfd, newfile, O_RDWR|O_CREAT|O_TRUNC, S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP|S_IWOTH|S_IROTH);
+	if (newfd < 0)
 		err(1, "open(%s)", argv[2]);
+
 	atexit(exit_cleanup);
 
 	/*
@@ -223,15 +226,26 @@ int main(int argc, char *argv[])
 	if ((epfbz2 = BZ2_bzReadOpen(&ebz2err, epf, 0, 0, NULL, 0)) == NULL)
 		errx(1, "BZ2_bzReadOpen, bz2err = %d", ebz2err);
 
-	if ((oldsize = lseek(oldfd, 0, SEEK_END)) == -1 ||
-	    oldsize > SSIZE_MAX ||
-	    (old = malloc(oldsize)) == NULL ||
-	    lseek(oldfd, 0, SEEK_SET) != 0 ||
-	    read(oldfd, old, oldsize) != oldsize ||
-	    close(oldfd) == -1)
-		err(1, "%s", argv[1]);
-	if ((new = malloc(newsize)) == NULL)
-		err(1, NULL);
+	oldsize = lseek(oldfd, 0, SEEK_END);
+	if (oldsize < 0)
+		err(1, "seek %s", argv[1]);
+
+	old = mmap(NULL, oldsize, PROT_READ, MAP_SHARED | MAP_POPULATE, oldfd, 0);
+	if (old == MAP_FAILED)
+		err(1, "mmap() %s", argv[1]);
+	if(close(oldfd)==-1)
+		err(1, "close() %s", argv[1]);
+
+	if(newsize > 0){
+		if(lseek(newfd, newsize-1, SEEK_SET) < 0)
+			err(1, "seek %s", argv[2]);
+		if(write(newfd, "", 1) != 1)
+			err(1, "write %s", argv[2]);
+	}
+	new = mmap(NULL, newsize, PROT_READ|PROT_WRITE, MAP_SHARED | MAP_POPULATE, newfd, 0);
+	if (new == MAP_FAILED)
+		err(1, "mmap %s", argv[2]);
+	close(newfd);
 
 	oldpos = 0;
 	newpos = 0;
@@ -291,14 +305,11 @@ int main(int argc, char *argv[])
 	if (fclose(cpf) || fclose(dpf) || fclose(epf))
 		err(1, "fclose(%s)", argv[3]);
 
-	/* Write the new file */
-	if (write(newfd, new, newsize) != newsize || close(newfd) == -1)
-		err(1, "%s", argv[2]);
 	/* Disable atexit cleanup */
 	newfile = NULL;
 
-	free(new);
-	free(old);
+	munmap(new, newsize);
+	munmap(old, oldsize);
 
 	return (0);
 }

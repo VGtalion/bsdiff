@@ -226,6 +226,8 @@ int main(int argc,char *argv[])
 	FILE * pf;
 	BZFILE * pfbz2;
 	int bz2err;
+	
+	pos=0;
 
 	if(argc!=4) errx(1,"usage: %s oldfile newfile patchfile\n",argv[0]);
 
