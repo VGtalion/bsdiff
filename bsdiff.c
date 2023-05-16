@@ -37,6 +37,7 @@ __FBSDID("$FreeBSD: src/usr.bin/bsdiff/bsdiff/bsdiff.c,v 1.1 2005/08/06 01:59:05
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 #define MIN(x,y) (((x)<(y)) ? (x) : (y))
 
@@ -215,14 +216,18 @@ int main(int argc,char *argv[])
 
 	if(argc!=4) errx(1,"usage: %s oldfile newfile patchfile\n",argv[0]);
 
-	/* Allocate oldsize+1 bytes instead of oldsize bytes to ensure
-		that we never try to malloc(0) and get a NULL pointer */
-	if(((fd=open(argv[1],O_RDONLY,0))<0) ||
-		((oldsize=lseek(fd,0,SEEK_END))==-1) ||
-		((old=malloc(oldsize+1))==NULL) ||
-		(lseek(fd,0,SEEK_SET)!=0) ||
-		(read(fd,old,oldsize)!=oldsize) ||
-		(close(fd)==-1)) err(1,"%s",argv[1]);
+	fd = open(argv[1], O_RDONLY,0);
+	if (fd < 0)
+		err(1, "Open %s", argv[1]);
+
+	oldsize = lseek(fd, 0, SEEK_END);
+	if (oldsize < 0)
+		err(1, "seek %s", argv[1]);
+
+	old = mmap(NULL, oldsize, PROT_READ, MAP_SHARED | MAP_POPULATE, fd, 0);
+	if (old == MAP_FAILED)
+		err(1, "mmap() %s", argv[1]);
+	close(fd);
 
 	if(((I=malloc((oldsize+1)*sizeof(off_t)))==NULL) ||
 		((V=malloc((oldsize+1)*sizeof(off_t)))==NULL)) err(1,NULL);
@@ -397,7 +402,7 @@ int main(int argc,char *argv[])
 	free(db);
 	free(eb);
 	free(I);
-	free(old);
+	munmap(old, oldsize);
 	free(new);
 
 	return 0;
