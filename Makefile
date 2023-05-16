@@ -8,8 +8,10 @@ all:		bsdiff bspatch
 bsdiff:		bsdiff.c
 bspatch:	bspatch.c
 
-install:
+install-bin:
 	${INSTALL_PROGRAM} bsdiff bspatch ${PREFIX}/bin
-.ifndef WITHOUT_MAN
+
+install-man:
 	${INSTALL_MAN} bsdiff.1 bspatch.1 ${PREFIX}/man/man1
-.endif
+
+install: install-bin install-man
