@@ -1,6 +1,6 @@
-# bsdiff 4.3
+# bsdiff 4.3.1
 
-This is based on the source code of bsdiff and bspatch, from daemonology : https://www.daemonology.net/bsdiff/
+This is based on the source code of bsdiff 4.3 (and bspatch 4.3), from daemonology : https://www.daemonology.net/bsdiff/
 
 The folloowing debian patches have been applyed :
 - 10-no-bsd-make.patch
