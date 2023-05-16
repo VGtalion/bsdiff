@@ -238,12 +238,16 @@ int main(int argc,char *argv[])
 
 	/* Allocate newsize+1 bytes instead of newsize bytes to ensure
 		that we never try to malloc(0) and get a NULL pointer */
-	if(((fd=open(argv[2],O_RDONLY,0))<0) ||
-		((newsize=lseek(fd,0,SEEK_END))==-1) ||
-		((new=malloc(newsize+1))==NULL) ||
-		(lseek(fd,0,SEEK_SET)!=0) ||
-		(read(fd,new,newsize)!=newsize) ||
-		(close(fd)==-1)) err(1,"%s",argv[2]);
+	fd = open(argv[2], O_RDONLY, 0);
+	if (fd < 0)
+		err(1, "open %s", argv[2]);
+	newsize = lseek(fd, 0, SEEK_END);
+	if (newsize == -1)
+		err(1, "lseek %s", argv[2]);
+	new = mmap(NULL, newsize, PROT_READ, MAP_SHARED | MAP_POPULATE, fd, 0);
+	if (new == MAP_FAILED)
+		err(1, "mmap %s", argv[2]);
+	close(fd);
 
 	if(((db=malloc(newsize+1))==NULL) ||
 		((eb=malloc(newsize+1))==NULL)) err(1,NULL);
@@ -403,7 +407,7 @@ int main(int argc,char *argv[])
 	free(eb);
 	free(I);
 	munmap(old, oldsize);
-	free(new);
+	munmap(new, newsize);
 
 	return 0;
 }
